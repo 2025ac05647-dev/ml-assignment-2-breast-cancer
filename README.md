@@ -22,7 +22,9 @@ Build and evaluate multiple machine learning classification models to predict wh
 ---
 
 ## GitHub Repository Link
-> *(Add your GitHub repository URL here after pushing)*
+> **GitHub:** https://github.com/2025ac05647-dev/ml-assignment-2-breast-cancer
+>
+> **Streamlit App (Live):** https://ml-assignment-2-breast-cancer-kfwjgwfu5x3ze2ifwrmrsu.streamlit.app/
 
 ---
 
@@ -83,8 +85,8 @@ ml_assignment2/
 
 ```bash
 # 1. Clone the repo
-git clone <your-repo-url>
-cd ml_assignment2
+git clone https://github.com/2025ac05647-dev/ml-assignment-2-breast-cancer.git
+cd ml-assignment-2-breast-cancer
 
 # 2. Create virtual environment
 python3 -m venv venv
@@ -103,14 +105,18 @@ streamlit run app.py
 ---
 
 ## Streamlit App Features
-- **CSV Upload**: Upload test data (test_data.csv) via sidebar
-- **Model Selection**: Dropdown to select from 6 classification models
-- **Evaluation Metrics**: Accuracy, AUC, Precision, Recall, F1, MCC per model
-- **Confusion Matrix**: Visual confusion matrix with TP/TN/FP/FN breakdown
-- **Classification Report**: Per-class precision, recall, F1-score
-- **Comparison Table**: All 6 models compared side-by-side with best values highlighted
-- **Bar Chart**: Interactive visualization of selected metrics across models
+- **CSV Upload**: Upload test data via sidebar; falls back to bundled `test_data.csv`
+- **Model Selection**: Dropdown to choose from 6 classification models
+- **Decision Threshold Slider**: Adjust probability cut-off (0.10–0.90) — all metrics update live
+- **Evaluation Metrics**: Accuracy, AUC, Precision, Recall, F1, MCC displayed as metric cards
+- **Diagnostics tab**:
+  - Confusion Matrix with TP/TN/FP/FN + Sensitivity, Specificity, PPV, NPV
+  - Classification Report (per-class precision, recall, F1)
+  - ROC Curve with AUC for selected model
+  - All-Model ROC Overlay — all 6 curves on one chart
+- **Model Comparison tab**: Comparison table (best cells highlighted) + grouped bar chart + radar charts per model
+- **Feature Importance tab**: Top-15 feature importance bar chart (RF, DT, LR, SVM)
+- **Live Predictor tab**: Pick any test sample, see all 6 models vote with ✓/✗, confidence gauge + probability bar
 
 ---
 
-*BITS Pilani WILP | NSP4 ML Assignment 2 | Submission Deadline: 18-Aug-2026*
