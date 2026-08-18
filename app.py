@@ -1,8 +1,3 @@
-"""
-ML Assignment 2 - Streamlit Application
-Breast Cancer Classification - Interactive ML Dashboard
-"""
-
 import os
 import pickle
 import numpy as np
@@ -10,25 +5,26 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import (accuracy_score, roc_auc_score, precision_score,
-                             recall_score, f1_score, matthews_corrcoef,
-                             confusion_matrix, classification_report,
-                             ConfusionMatrixDisplay)
+from sklearn.metrics import (
+    accuracy_score, roc_auc_score, precision_score, recall_score,
+    f1_score, matthews_corrcoef, confusion_matrix, classification_report,
+    roc_curve,
+)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Page Config
-# ──────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="ML Assignment 2 | Breast Cancer Classification",
-    page_icon="🔬",
+    page_title="BC-Classifier | ML Assignment 2",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Constants
-# ──────────────────────────────────────────────────────────────────────────────
+ACCENT  = "#4F8EF7"
+ACCENT2 = "#22C55E"
+MUTED   = "#6B7280"
+BG_CARD = "#F8FAFC"
+BORDER  = "#E2E8F0"
+FONT    = "'Inter', 'Segoe UI', sans-serif"
+
 MODEL_DIR = "model"
 MODEL_FILES = {
     "Logistic Regression": "logistic_regression.pkl",
@@ -38,254 +34,366 @@ MODEL_FILES = {
     "Random Forest":       "random_forest.pkl",
     "SVM":                 "svm.pkl",
 }
-CLASS_NAMES = ["Malignant (0)", "Benign (1)"]
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Helper: Load a pickled object
-# ──────────────────────────────────────────────────────────────────────────────
+st.markdown(f"""
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  html, body, [class*="css"] {{ font-family: {FONT}; }}
+
+  section[data-testid="stSidebar"] {{
+    background: #0F172A;
+    border-right: 1px solid #1E293B;
+  }}
+  section[data-testid="stSidebar"] * {{ color: #CBD5E1 !important; }}
+  section[data-testid="stSidebar"] h1,
+  section[data-testid="stSidebar"] h2,
+  section[data-testid="stSidebar"] h3 {{ color: #F1F5F9 !important; }}
+  section[data-testid="stSidebar"] label {{
+    color: #94A3B8 !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.07em !important;
+    text-transform: uppercase !important;
+    font-weight: 600 !important;
+  }}
+
+  .page-header {{
+    padding: 1.25rem 0 0.25rem 0;
+    border-bottom: 2px solid {BORDER};
+    margin-bottom: 1.5rem;
+  }}
+  .page-header h1 {{
+    font-size: 1.4rem; font-weight: 700; color: #0F172A;
+    margin: 0; letter-spacing: -0.025em;
+  }}
+  .page-header p {{ color: {MUTED}; font-size: 0.83rem; margin: 0.2rem 0 0 0; }}
+
+  .sec-label {{
+    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: {MUTED}; margin-bottom: 0.5rem;
+  }}
+
+  .mcard {{
+    background: {BG_CARD}; border: 1px solid {BORDER}; border-radius: 8px;
+    padding: 0.8rem 0.75rem; text-align: center;
+  }}
+  .mcard:hover {{ border-color: {ACCENT}; }}
+  .mcard .mlabel {{
+    font-size: 0.67rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: {MUTED}; margin-bottom: 0.25rem;
+  }}
+  .mcard .mval {{
+    font-size: 1.5rem; font-weight: 700; color: #0F172A;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }}
+  .mcard .msub {{ font-size: 0.68rem; color: {MUTED}; margin-top: 0.1rem; }}
+
+  .winner {{
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px;
+    padding: 0.45rem 0.875rem; font-size: 0.83rem; font-weight: 600;
+    color: #15803D; margin-top: 0.75rem;
+  }}
+
+  .block-container {{ padding-top: 1rem !important; }}
+</style>
+""", unsafe_allow_html=True)
+
+
 @st.cache_resource
 def load_pickle(path):
     with open(path, "rb") as f:
         return pickle.load(f)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Helper: Compute all metrics for a single model
-# ──────────────────────────────────────────────────────────────────────────────
+
 def compute_metrics(y_true, y_pred, y_prob):
     return {
-        "Accuracy":  round(accuracy_score(y_true, y_pred), 4),
-        "AUC":       round(roc_auc_score(y_true, y_prob), 4),
-        "Precision": round(precision_score(y_true, y_pred, zero_division=0), 4),
-        "Recall":    round(recall_score(y_true, y_pred, zero_division=0), 4),
-        "F1 Score":  round(f1_score(y_true, y_pred, zero_division=0), 4),
-        "MCC":       round(matthews_corrcoef(y_true, y_pred), 4),
+        "Accuracy":  accuracy_score(y_true, y_pred),
+        "AUC":       roc_auc_score(y_true, y_prob),
+        "Precision": precision_score(y_true, y_pred, zero_division=0),
+        "Recall":    recall_score(y_true, y_pred, zero_division=0),
+        "F1":        f1_score(y_true, y_pred, zero_division=0),
+        "MCC":       matthews_corrcoef(y_true, y_pred),
     }
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Sidebar
-# ──────────────────────────────────────────────────────────────────────────────
-st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/BITS_Pilani-Logo.svg/320px-BITS_Pilani-Logo.svg.png",
-                 width=180)
-st.sidebar.title("🔬 ML Assignment 2")
-st.sidebar.markdown("**Breast Cancer Classification**")
-st.sidebar.markdown("---")
 
-# ── a. CSV Upload ─────────────────────────────────────────────────────────────
-st.sidebar.subheader("📁 Upload Test Data (CSV)")
-uploaded_file = st.sidebar.file_uploader(
-    "Upload your test_data.csv",
-    type=["csv"],
-    help="CSV must contain the 30 Breast Cancer features + a 'target' column (0/1)."
-)
+def mcard(label, value, sub=""):
+    v = f"{value:.4f}" if isinstance(value, float) else str(value)
+    return (f"<div class='mcard'><div class='mlabel'>{label}</div>"
+            f"<div class='mval'>{v}</div>"
+            + (f"<div class='msub'>{sub}</div>" if sub else "")
+            + "</div>")
 
-st.sidebar.markdown("---")
 
-# ── b. Model Selection Dropdown ───────────────────────────────────────────────
-st.sidebar.subheader("🤖 Select Model")
-selected_model_name = st.sidebar.selectbox(
-    "Choose a classification model:",
-    list(MODEL_FILES.keys()),
-    index=4,   # default: Random Forest
-)
+# ── Sidebar ───────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("### BC-Classifier")
+    st.markdown("<span style='font-size:0.72rem;color:#64748B'>Breast Cancer · Binary Classification</span>",
+                unsafe_allow_html=True)
+    st.markdown("<hr style='border-color:#1E293B;margin:0.75rem 0'>", unsafe_allow_html=True)
 
-st.sidebar.markdown("---")
-st.sidebar.markdown(
-    "**Dataset**: Breast Cancer Wisconsin Diagnostic  \n"
-    "**Source**: UCI ML Repository  \n"
-    "**Instances**: 569 | **Features**: 30  \n"
-    "**Task**: Binary Classification"
-)
+    st.markdown("<p style='font-size:0.68rem;font-weight:600;letter-spacing:0.1em;"
+                "text-transform:uppercase;color:#475569;margin-bottom:0.4rem'>Test Data</p>",
+                unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("Upload test_data.csv", type=["csv"],
+                                     label_visibility="collapsed")
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Main Layout
-# ──────────────────────────────────────────────────────────────────────────────
-st.title("🔬 Breast Cancer Classification - ML Dashboard")
-st.markdown(
-    "This app evaluates **6 classification models** on the "
-    "Breast Cancer Wisconsin Diagnostic dataset.  \n"
-    "Upload test data via the sidebar, select a model, and explore the results."
-)
+    st.markdown("<hr style='border-color:#1E293B;margin:0.75rem 0'>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size:0.68rem;font-weight:600;letter-spacing:0.1em;"
+                "text-transform:uppercase;color:#475569;margin-bottom:0.4rem'>Model</p>",
+                unsafe_allow_html=True)
+    selected_model_name = st.selectbox("Choose model", list(MODEL_FILES.keys()),
+                                       index=4, label_visibility="collapsed")
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Load Data
-# ──────────────────────────────────────────────────────────────────────────────
+    st.markdown("<hr style='border-color:#1E293B;margin:0.75rem 0'>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style='font-size:0.72rem;color:#475569;line-height:2'>
+      <span style='color:#64748B'>Dataset</span><br>Breast Cancer Wisconsin (UCI)<br>
+      <span style='color:#64748B'>Instances</span><br>569 &nbsp;·&nbsp; 80/20 split<br>
+      <span style='color:#64748B'>Features</span><br>30 numerical<br>
+      <span style='color:#64748B'>Task</span><br>Binary · Malignant / Benign
+    </div>""", unsafe_allow_html=True)
+
+
+# ── Page header ───────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="page-header">
+  <h1>Breast Cancer Classification</h1>
+  <p>ML Assignment 2 &nbsp;·&nbsp; 6-model comparison &nbsp;·&nbsp;
+     Accuracy · AUC · Precision · Recall · F1 · MCC</p>
+</div>""", unsafe_allow_html=True)
+
+
+# ── Load data ─────────────────────────────────────────────────────────────────
 if uploaded_file is not None:
     try:
         df = pd.read_csv(uploaded_file)
     except Exception as e:
-        st.error(f"Error reading CSV: {e}")
+        st.error(f"Could not read CSV — {e}")
         st.stop()
 elif os.path.exists("test_data.csv"):
     df = pd.read_csv("test_data.csv")
-    st.info("ℹ️ Using bundled **test_data.csv**. You can upload your own via the sidebar.")
+    st.caption("Using bundled test_data.csv  ·  Upload a different file via the sidebar to override.")
 else:
-    st.warning("⚠️ No test data found. Please upload a CSV file from the sidebar.")
+    st.warning("No test data found. Upload a CSV file from the sidebar.")
     st.stop()
 
-# Validate columns
 if "target" not in df.columns:
-    st.error("The CSV must have a **'target'** column (0 = Malignant, 1 = Benign).")
+    st.error("CSV must contain a `target` column (0 = Malignant, 1 = Benign).")
     st.stop()
 
 X_test = df.drop(columns=["target"])
 y_test  = df["target"]
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Load Scaler & Scale Features
-# ──────────────────────────────────────────────────────────────────────────────
 scaler_path = os.path.join(MODEL_DIR, "scaler.pkl")
 if not os.path.exists(scaler_path):
-    st.error("Scaler not found. Please run `train_models.py` first.")
+    st.error("scaler.pkl not found — run `train_models.py` first.")
     st.stop()
 
-scaler      = load_pickle(scaler_path)
-X_test_sc   = scaler.transform(X_test)
+scaler    = load_pickle(scaler_path)
+X_test_sc = scaler.transform(X_test)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Show Dataset Preview
-# ──────────────────────────────────────────────────────────────────────────────
-with st.expander("📊 Test Data Preview", expanded=False):
-    st.dataframe(df.head(10), use_container_width=True)
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Samples", len(df))
-    col2.metric("Malignant (0)", int((y_test == 0).sum()))
-    col3.metric("Benign (1)",    int((y_test == 1).sum()))
 
-st.markdown("---")
+# ── Dataset stats ─────────────────────────────────────────────────────────────
+c1, c2, c3, c4 = st.columns(4)
+c1.markdown(mcard("Test samples", len(df)), unsafe_allow_html=True)
+c2.markdown(mcard("Malignant", int((y_test == 0).sum()), "class 0"), unsafe_allow_html=True)
+c3.markdown(mcard("Benign",    int((y_test == 1).sum()), "class 1"), unsafe_allow_html=True)
+c4.markdown(mcard("Features",  X_test.shape[1]),         unsafe_allow_html=True)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Load Selected Model & Predict
-# ──────────────────────────────────────────────────────────────────────────────
+st.markdown("<div style='height:1.25rem'></div>", unsafe_allow_html=True)
+
+
+# ── Load selected model ───────────────────────────────────────────────────────
 model_path = os.path.join(MODEL_DIR, MODEL_FILES[selected_model_name])
 if not os.path.exists(model_path):
-    st.error(f"Model file not found: `{model_path}`. Run `train_models.py` first.")
+    st.error(f"Model file missing: `{model_path}` — run train_models.py")
     st.stop()
 
 model  = load_pickle(model_path)
 y_pred = model.predict(X_test_sc)
 y_prob = model.predict_proba(X_test_sc)[:, 1]
+m      = compute_metrics(y_test, y_pred, y_prob)
 
-metrics = compute_metrics(y_test, y_pred, y_prob)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# c. Single Model Metrics Display
-# ──────────────────────────────────────────────────────────────────────────────
-st.subheader(f"📈 Evaluation Metrics — {selected_model_name}")
+# ── Metrics row ───────────────────────────────────────────────────────────────
+st.markdown(f"<p class='sec-label'>{selected_model_name} — metrics</p>",
+            unsafe_allow_html=True)
+mc = st.columns(6)
+for col, (label, val) in zip(mc, m.items()):
+    col.markdown(mcard(label, val), unsafe_allow_html=True)
 
-cols = st.columns(6)
-metric_labels = list(metrics.keys())
-metric_values = list(metrics.values())
+st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
 
-for i, col in enumerate(cols):
-    col.metric(label=metric_labels[i], value=f"{metric_values[i]:.4f}")
 
-st.markdown("---")
+# ── Diagnostics tabs ──────────────────────────────────────────────────────────
+st.markdown("<p class='sec-label'>Diagnostics</p>", unsafe_allow_html=True)
+tab1, tab2, tab3 = st.tabs(["Confusion Matrix", "Classification Report", "ROC Curve"])
 
-# ──────────────────────────────────────────────────────────────────────────────
-# d. Confusion Matrix + Classification Report
-# ──────────────────────────────────────────────────────────────────────────────
-st.subheader(f"🧩 Confusion Matrix & Classification Report — {selected_model_name}")
-
-col_left, col_right = st.columns([1, 1.4])
-
-with col_left:
+with tab1:
     cm = confusion_matrix(y_test, y_pred)
-    fig, ax = plt.subplots(figsize=(5, 4))
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm,
-                                   display_labels=["Malignant", "Benign"])
-    disp.plot(ax=ax, colorbar=False, cmap="Blues")
-    ax.set_title(f"Confusion Matrix\n{selected_model_name}", fontsize=12, pad=10)
+    tn, fp, fn, tp = cm.ravel()
+
+    fig, ax = plt.subplots(figsize=(4.5, 3.8))
+    fig.patch.set_facecolor("white")
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
+                xticklabels=["Malignant", "Benign"],
+                yticklabels=["Malignant", "Benign"],
+                linewidths=0.5, linecolor="#E2E8F0",
+                cbar=False, ax=ax, annot_kws={"size": 15, "weight": "bold"})
+    ax.set_xlabel("Predicted", fontsize=9, labelpad=8, color="#374151")
+    ax.set_ylabel("Actual",    fontsize=9, labelpad=8, color="#374151")
+    ax.set_title(selected_model_name, fontsize=10, fontweight="600", pad=12, color="#0F172A")
+    ax.tick_params(labelsize=8, colors="#6B7280")
+    for sp in ax.spines.values():
+        sp.set_edgecolor("#E2E8F0")
     plt.tight_layout()
-    st.pyplot(fig, use_container_width=True)
 
-with col_right:
-    st.markdown("**Classification Report**")
-    report_dict = classification_report(
-        y_test, y_pred,
-        target_names=["Malignant", "Benign"],
-        output_dict=True
-    )
-    report_df = pd.DataFrame(report_dict).transpose().round(4)
-    # Drop 'support' from class rows for cleaner display
-    st.dataframe(report_df.style.background_gradient(cmap="Blues", axis=0),
-                 use_container_width=True)
+    left, _, right = st.columns([1.2, 0.15, 1])
+    left.pyplot(fig, use_container_width=True)
+    with right:
+        st.markdown("<div style='height:0.4rem'></div>", unsafe_allow_html=True)
+        for label, val, ok in [
+            ("True Positive",  tp, True),
+            ("True Negative",  tn, True),
+            ("False Positive", fp, False),
+            ("False Negative", fn, False),
+        ]:
+            color = "#15803D" if ok else "#B91C1C"
+            st.markdown(
+                f"<div style='display:flex;justify-content:space-between;"
+                f"padding:0.4rem 0;border-bottom:1px solid #F1F5F9;font-size:0.83rem'>"
+                f"<span style='color:#374151'>{label}</span>"
+                f"<span style='font-weight:700;color:{color}'>{int(val)}</span></div>",
+                unsafe_allow_html=True)
 
-st.markdown("---")
+with tab2:
+    report = classification_report(y_test, y_pred,
+                                   target_names=["Malignant", "Benign"],
+                                   output_dict=True)
+    rdf = pd.DataFrame(report).T.drop(columns=["support"], errors="ignore").round(4)
+    st.dataframe(
+        rdf.style
+           .background_gradient(cmap="Blues", axis=0, vmin=0.5, vmax=1.0)
+           .format("{:.4f}"),
+        use_container_width=True)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# All Models Comparison Table
-# ──────────────────────────────────────────────────────────────────────────────
-st.subheader("🏆 All Models Comparison on Test Data")
+with tab3:
+    fpr, tpr, _ = roc_curve(y_test, y_prob)
+    fig2, ax2 = plt.subplots(figsize=(5, 4))
+    fig2.patch.set_facecolor("white")
+    ax2.plot(fpr, tpr, color=ACCENT, lw=2, label=f"AUC = {m['AUC']:.4f}")
+    ax2.plot([0, 1], [0, 1], "--", color="#CBD5E1", lw=1)
+    ax2.fill_between(fpr, tpr, alpha=0.06, color=ACCENT)
+    ax2.set_xlim([0, 1]); ax2.set_ylim([0, 1.02])
+    ax2.set_xlabel("False Positive Rate", fontsize=9, color="#374151")
+    ax2.set_ylabel("True Positive Rate",  fontsize=9, color="#374151")
+    ax2.set_title(f"ROC — {selected_model_name}", fontsize=10, fontweight="600", color="#0F172A")
+    ax2.tick_params(labelsize=8, colors="#6B7280")
+    ax2.legend(fontsize=9, framealpha=0.6)
+    for sp in ax2.spines.values():
+        sp.set_edgecolor("#E2E8F0")
+    ax2.yaxis.grid(True, linestyle="--", alpha=0.35, color="#E2E8F0")
+    ax2.set_axisbelow(True)
+    ax2.spines["top"].set_visible(False)
+    ax2.spines["right"].set_visible(False)
+    fig2.tight_layout()
+    st.pyplot(fig2, use_container_width=True)
+
+st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
+
+
+# ── All-model comparison ──────────────────────────────────────────────────────
+st.markdown("<p class='sec-label'>All models — test set comparison</p>",
+            unsafe_allow_html=True)
 
 all_results = []
-for model_name, model_file in MODEL_FILES.items():
-    mp = os.path.join(MODEL_DIR, model_file)
+for name, fname in MODEL_FILES.items():
+    mp = os.path.join(MODEL_DIR, fname)
     if not os.path.exists(mp):
         continue
-    m       = load_pickle(mp)
-    yp      = m.predict(X_test_sc)
-    yprob   = m.predict_proba(X_test_sc)[:, 1]
-    row     = {"Model": model_name}
+    mm    = load_pickle(mp)
+    yp    = mm.predict(X_test_sc)
+    yprob = mm.predict_proba(X_test_sc)[:, 1]
+    row   = {"Model": name}
     row.update(compute_metrics(y_test, yp, yprob))
     all_results.append(row)
 
-comparison_df = pd.DataFrame(all_results).set_index("Model")
+cmp_df  = pd.DataFrame(all_results).set_index("Model")
+best_f1 = cmp_df["F1"].idxmax()
 
-# Highlight best value per metric
-def highlight_best(col):
-    if col.name == "MCC":
-        is_best = col == col.max()
-    else:
-        is_best = col == col.max()
-    return ["background-color: #d4edda; font-weight: bold" if v else "" for v in is_best]
 
-styled = (
-    comparison_df.style
-    .apply(highlight_best, axis=0)
-    .format("{:.4f}")
-)
-st.dataframe(styled, use_container_width=True)
+def style_cmp(df):
+    s = df.style
+    for col in df.columns:
+        best_val = df[col].max()
+        s = s.applymap(
+            lambda v, bv=best_val: (
+                "background-color:#F0FDF4;color:#15803D;font-weight:700" if v == bv else ""
+            ),
+            subset=[col],
+        )
+    return s.format("{:.4f}")
 
-# Bar chart comparison
-st.markdown("**Visual Comparison of Metrics**")
-chart_df = comparison_df.reset_index().melt(id_vars="Model", var_name="Metric", value_name="Score")
-selected_metrics = st.multiselect(
-    "Select metrics to visualize:",
-    list(comparison_df.columns),
-    default=["Accuracy", "AUC", "F1 Score"],
-)
-if selected_metrics:
-    chart_data = comparison_df[selected_metrics]
-    st.bar_chart(chart_data, use_container_width=True)
 
-st.markdown("---")
+st.dataframe(style_cmp(cmp_df), use_container_width=True)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Model Observations
-# ──────────────────────────────────────────────────────────────────────────────
-st.subheader("📝 Model Observations")
+st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
 
-observations = {
-    "Logistic Regression": "Simple linear classifier. Performs well on this dataset due to the near-linear separability of classes. Fast to train and highly interpretable.",
-    "Decision Tree":       "Captures non-linear boundaries. Prone to overfitting without pruning. Lower AUC than ensemble models.",
-    "KNN":                 "Non-parametric distance-based model. Sensitive to feature scaling (handled by StandardScaler). Moderately good performance.",
-    "Naive Bayes":         "Assumes feature independence. Despite this strong assumption, achieves reasonable accuracy on medical data with many correlated features.",
-    "Random Forest":       "Best overall performer. Reduces overfitting through bagging and feature subsampling. High AUC indicates strong probability calibration.",
-    "SVM":                 "Excellent for high-dimensional data. Finds optimal hyperplane margin. Competitive AUC with Random Forest.",
-}
+chosen = st.multiselect("Metrics to plot", list(cmp_df.columns),
+                        default=["Accuracy", "AUC", "F1"])
 
-obs_df = pd.DataFrame([
-    {"Model": k, "Observation": v}
-    for k, v in observations.items()
-])
-st.dataframe(obs_df, use_container_width=True, hide_index=True)
+if chosen:
+    models_list = list(cmp_df.index)
+    x           = np.arange(len(models_list))
+    bar_w       = 0.75 / len(chosen)
+    palette     = [ACCENT, ACCENT2, "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6"]
 
-# Winner
-best_model = comparison_df["F1 Score"].idxmax()
-st.success(f"🥇 **Overall Winner**: **{best_model}** (highest F1 Score on test data)")
+    fig3, ax3 = plt.subplots(figsize=(10, 3.6))
+    fig3.patch.set_facecolor("white")
+    for i, metric in enumerate(chosen):
+        vals = [cmp_df.loc[mn, metric] for mn in models_list]
+        ax3.bar(x + i * bar_w, vals, width=bar_w * 0.88,
+                color=palette[i % len(palette)], label=metric, zorder=3, alpha=0.9)
+    ax3.set_xticks(x + bar_w * (len(chosen) - 1) / 2)
+    ax3.set_xticklabels(models_list, fontsize=8.5, color="#374151")
+    ax3.set_ylim(0, 1.09)
+    ax3.set_ylabel("Score", fontsize=9, color="#374151")
+    ax3.tick_params(axis="y", labelsize=8, colors="#6B7280")
+    ax3.yaxis.grid(True, linestyle="--", alpha=0.4, color="#E2E8F0", zorder=0)
+    ax3.set_axisbelow(True)
+    ax3.spines["top"].set_visible(False)
+    ax3.spines["right"].set_visible(False)
+    for sp in ["left", "bottom"]:
+        ax3.spines[sp].set_edgecolor("#E2E8F0")
+    ax3.legend(fontsize=8.5, framealpha=0.6, loc="lower right")
+    fig3.tight_layout()
+    st.pyplot(fig3, use_container_width=True)
 
-st.markdown("---")
-st.caption(
-    "ML Assignment 2 | BITS Pilani WILP | "
-    "Breast Cancer Wisconsin Diagnostic Dataset (UCI ML Repository)"
-)
+st.markdown(
+    f"<div class='winner'>Best by F1 — {best_f1} ({cmp_df.loc[best_f1,'F1']:.4f})</div>",
+    unsafe_allow_html=True)
+
+st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
+
+
+# ── Observations ──────────────────────────────────────────────────────────────
+with st.expander("Model observations", expanded=False):
+    obs = {
+        "Logistic Regression": "Near-optimal on this near-linearly-separable dataset. Fast, interpretable, strong baseline. Tied best AUC.",
+        "Decision Tree":       "Lowest AUC — captures non-linear splits but overfits without pruning. Useful for rule extraction.",
+        "KNN":                 "Instance-based; sensitive to scale (StandardScaler applied). Reasonable at k=5.",
+        "Naive Bayes":         "Assumes feature independence (violated here) yet achieves useful recall. Fastest inference.",
+        "Random Forest":       "Bagging reduces variance. Stable AUC. Good when interpretability is less critical.",
+        "SVM":                 "Tied best with LR. Max-margin classifier excels in high-dimensional feature spaces.",
+    }
+    obs_df = pd.DataFrame({"Model": obs.keys(), "Observation": obs.values()})
+    st.dataframe(obs_df, hide_index=True, use_container_width=True)
+
+
+# ── Footer ────────────────────────────────────────────────────────────────────
+st.markdown(
+    "<hr style='border-color:#E2E8F0;margin-top:2rem'>"
+    "<p style='font-size:0.7rem;color:#94A3B8;text-align:center;padding-bottom:0.5rem'>"
+    "BITS Pilani WILP · NSP4 ML Assignment 2 · "
+    "Breast Cancer Wisconsin Diagnostic · UCI ML Repository</p>",
+    unsafe_allow_html=True)
